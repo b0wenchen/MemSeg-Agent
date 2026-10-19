@@ -1,8 +1,8 @@
 # MemSeg-Agent
 
-Official implementation of **MemSeg-Agent**, a memory-augmented framework that
+We present **MemSeg-Agent**, a memory-augmented framework that
 shifts medical-image segmentation adaptation from backbone weights to memory
-space. See [the paper](https://arxiv.org/abs/2603.05873).
+space. See [our paper](https://arxiv.org/abs/2603.05873).
 
 > Research code only; not a clinical device or clinical decision-support tool.
 
@@ -10,7 +10,7 @@ space. See [the paper](https://arxiv.org/abs/2603.05873).
 
 | Module | Location | Updated parameters/state |
 | --- | --- | --- |
-| Supervised static memory | `scripts/train_static.py` | Pseudo-image and pseudo-mask logits; SAM2 is frozen |
+| Supervised static memory | `scripts/train_static.py` | Direct memory tokens or pseudo-image/mask logits; SAM2 is frozen |
 | Few-shot memory | `memseg_agent.fewshot` | Non-parametric tokens from support pairs |
 | Test-time working memory | `scripts/eval_working_memory.py` | Bounded DINOv3 retrieval buffer with gated EMA updates |
 | Agentic composition | `memseg_agent.controller` | Transparent static/few-shot/working routing policy |
@@ -23,7 +23,7 @@ dependencies and use all datasets under their respective licenses.
 ## Installation
 
 ```bash
-git clone https://github.com/<YOUR-ACCOUNT>/MemSeg-Agent.git
+git clone https://github.com/b0wenchen/MemSeg-Agent.git
 cd MemSeg-Agent
 # First install the PyTorch build matching your CUDA runtime.
 pip install -r requirements.txt
@@ -31,8 +31,9 @@ pip install -r requirements.txt
 
 Download a SAM2 checkpoint from the
 [official SAM2 repository](https://github.com/facebookresearch/sam2), then
-copy `configs/default.yaml` and set `sam2_config` and `sam2_checkpoint` to
-your local files. The optional DINOv3 retrieval model is downloaded from Hugging
+copy `configs/default.yaml` and set `sam2_checkpoint` to your local weight file.
+Keep `sam2_config` as the SAM2 package config name (for example,
+`configs/sam2.1/sam2.1_hiera_t.yaml`). The optional DINOv3 retrieval model is downloaded from Hugging
 Face and may require access approval.
 
 ## Data and patient-level protocol
@@ -60,37 +61,50 @@ Neither dataset is redistributed here.
 
 ### Choosing a static-memory parameterization
 
-The authors studied two parameterizations in their ablations:
+We study two static-memory parameterizations in our ablations:
 
 | Intended use | Optimization target | Memory representation |
 | --- | --- | --- |
-| Static-only segmentation | Directly train memory tokens (and their positional parameters) | Compact memory, described as “2M” memory size by the authors |
+| Static-only segmentation | Directly train memory tokens (and their positional parameters) | Compact memory (our “2M” memory size) |
 | Static memory followed by test-time working-memory aggregation | Train pseudo-image and pseudo-mask logits through the frozen encoder | Encoder-generated static memory, composed with encoded corrected observations |
 
-According to the authors' ablation findings, the two approaches achieve
-similar static segmentation performance. This is an empirical observation,
-not a guarantee of identical predictions or performance in every setting.
-For the authors' workflow that subsequently aggregates test-time working
-memory, use the pseudo-observation training route.
+Our ablation results show that the two approaches achieve similar static
+segmentation performance. For static-only training, we directly optimize the
+compact memory. For subsequent test-time working-memory aggregation, we train
+pseudo-image and pseudo-mask logits through the frozen encoder.
 
-Here, “2M” denotes the compact memory size in the authors' terminology; it
+Here, “2M” denotes our compact memory size; it
 does not denote the number of trainable pseudo-image and pseudo-mask logits.
 Storage in bytes depends on tensor shapes, dtype, and whether positional
 encodings are included, and should be reported separately from parameter count.
 
-**Release scope:** `MemSegAgent` and `scripts/train_static.py` currently implement
-the pseudo-observation route. The original workspace's `5F_Supmem_3.py` contains
-the direct-token ablation (`learnable_memory`, `learnable_memory_pos`); a
-direct-token training entry point has not yet been ported into this release.
+We provide both routes through `MemSegAgent` and `scripts/train_static.py`.
+They share memory attention, decoding, loss, and the training loop. Direct-token
+training initializes and optimizes `learnable_memory` and `learnable_memory_pos`;
+pseudo-observation training initializes logits and encodes them at each forward
+pass. Select the route with `memory_mode` in YAML or `--memory-mode` on the CLI.
 
 ```bash
 cp configs/default.yaml configs/acdc_lv.yaml
 # Edit paths, target_class, num_classes, and output_dir.
-python scripts/train_static.py --config configs/acdc_lv.yaml --fold 0
+python scripts/train_static.py --config configs/acdc_lv.yaml --fold 0 --memory-mode pseudo_observation
+# Static-only direct-token ablation:
+python scripts/train_static.py --config configs/acdc_lv.yaml --fold 0 --memory-mode direct_tokens
 ```
 
-The best checkpoint stores only `mem_img_logits` and `mem_mask_logits`, never
-the SAM2 backbone.
+We save checkpoints under `<output_dir>/<memory_mode>/fold_<N>/` so the two
+experiments remain separate. Each checkpoint stores the selected memory
+parameters and configuration, with no SAM2 backbone weights.
+
+Evaluate a direct-token checkpoint without DINO or test-time feedback:
+
+```bash
+python scripts/eval_working_memory.py --config configs/acdc_lv.yaml --fold 0 \
+  --static-only \
+  --static-checkpoint outputs/static_memory/direct_tokens/fold_1/best_static_memory.pt
+```
+
+We also support `--static-only` with pseudo-observation checkpoints for comparison.
 
 ## Test-time working memory
 
@@ -98,7 +112,7 @@ the SAM2 backbone.
 python scripts/eval_working_memory.py \
   --config configs/acdc_lv.yaml \
   --fold 0 \
-  --static-checkpoint outputs/static_memory/fold_1/best_static_memory.pt \
+  --static-checkpoint outputs/static_memory/pseudo_observation/fold_1/best_static_memory.pt \
   --feedback-dice-threshold 0.5 \
   --save-working-memory outputs/working_memory/fold_1.pt
 ```

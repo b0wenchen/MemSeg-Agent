@@ -19,18 +19,17 @@ class MemSegAgent(nn.Module):
     observations can be encoded into the same space through
     :meth:`encode_observation` and composed at inference time.
 
-    Parameterization choice (authors' ablation findings): static-only use can
-    directly optimize compact memory tokens (the authors' "2M" memory size).
-    For subsequent test-time working-memory aggregation, the authors' workflow
-    instead trains pseudo-image/mask logits through the frozen encoder, as
-    implemented here. They report similar static performance for the two
-    routes; this does not imply identical outputs. "2M" is a memory-size
-    description, not the parameter count of these pseudo-observation logits.
-    Direct-token training is not implemented by this class.
+    Our ablation results show similar static performance for direct tokens and
+    pseudo-observations. Use ``direct_tokens`` for static-only training and
+    ``pseudo_observation`` for our subsequent working-memory aggregation route.
+    Both routes share the same memory attention, decoder, and training loss.
     """
 
-    def __init__(self, sam2_config: str | Path, sam2_checkpoint: str | Path, target_class: int = 1) -> None:
+    def __init__(self, sam2_config: str | Path, sam2_checkpoint: str | Path, target_class: int = 1, memory_mode: str = "pseudo_observation") -> None:
         super().__init__()
+        if memory_mode not in {"pseudo_observation", "direct_tokens"}:
+            raise ValueError(f"Unknown memory_mode: {memory_mode}")
+        self.memory_mode = memory_mode
         try:
             from sam2.build_sam import build_sam2
         except ImportError as exc:  # pragma: no cover - external dependency
@@ -40,8 +39,18 @@ class MemSegAgent(nn.Module):
         self.sam2.eval()
         for parameter in self.sam2.parameters():
             parameter.requires_grad_(False)
-        self.mem_img_logits = nn.Parameter(torch.randn(1, 3, 1024, 1024) * 0.02)
-        self.mem_mask_logits = nn.Parameter(torch.randn(1, 1, 1024, 1024) * 0.02 + 2.0)
+        if memory_mode == "pseudo_observation":
+            self.mem_img_logits = nn.Parameter(torch.randn(1, 3, 1024, 1024) * 0.02)
+            self.mem_mask_logits = nn.Parameter(torch.randn(1, 1, 1024, 1024) * 0.02 + 2.0)
+        else:
+            # Infer token dimensions through the encoder, as in the original
+            # direct-memory ablation; no pseudo-observations are optimized.
+            with torch.no_grad():
+                memory, position = self._tokens_from_memory_encoder(
+                    torch.randn(1, 3, 1024, 1024), torch.ones(1, 1, 1024, 1024)
+                )
+            self.learnable_memory = nn.Parameter(torch.randn_like(memory) * 0.02)
+            self.learnable_memory_pos = nn.Parameter(torch.randn_like(position) * 0.02)
 
     def train(self, mode: bool = True) -> "MemSegAgent":
         super().train(mode)
@@ -50,7 +59,18 @@ class MemSegAgent(nn.Module):
 
     @property
     def device(self) -> torch.device:
-        return self.mem_img_logits.device
+        return next(self.memory_parameters()).device
+
+    def memory_parameters(self):
+        """Yield only the parameters optimized for the selected memory mode."""
+        for key in self.memory_keys:
+            yield getattr(self, key)
+
+    @property
+    def memory_keys(self) -> tuple[str, str]:
+        if self.memory_mode == "direct_tokens":
+            return ("learnable_memory", "learnable_memory_pos")
+        return ("mem_img_logits", "mem_mask_logits")
 
     @staticmethod
     def prepare_image(image: torch.Tensor | np.ndarray, size: int = 1024) -> torch.Tensor:
@@ -81,7 +101,9 @@ class MemSegAgent(nn.Module):
         return memory, position
 
     def static_tokens(self) -> tuple[torch.Tensor, torch.Tensor]:
-        """Build differentiable tokens from the optimized pseudo-observation."""
+        """Return direct parameters or encode the optimized pseudo-observation."""
+        if self.memory_mode == "direct_tokens":
+            return self.learnable_memory, self.learnable_memory_pos
         return self._tokens_from_memory_encoder(torch.sigmoid(self.mem_img_logits), torch.sigmoid(self.mem_mask_logits))
 
     @torch.no_grad()
@@ -158,12 +180,18 @@ class MemSegAgent(nn.Module):
         return (weights * masks.float()).sum(dim=1, keepdim=True), objectness
 
     def static_state_dict(self) -> dict[str, torch.Tensor]:
-        return {"mem_img_logits": self.mem_img_logits.detach().cpu(), "mem_mask_logits": self.mem_mask_logits.detach().cpu()}
+        return {key: getattr(self, key).detach().cpu().clone() for key in self.memory_keys}
 
     @torch.no_grad()
     def load_static_state_dict(self, state: dict[str, torch.Tensor]) -> None:
-        required = {"mem_img_logits", "mem_mask_logits"}
+        # Accept the original direct-token experiment's checkpoint keys too.
+        if self.memory_mode == "direct_tokens" and {"memory", "memory_pos"}.issubset(state):
+            state = {"learnable_memory": state["memory"], "learnable_memory_pos": state["memory_pos"]}
+        required = set(self.memory_keys)
         if not required.issubset(state):
             raise KeyError(f"Static checkpoint needs {sorted(required)}, found {sorted(state)}")
-        self.mem_img_logits.copy_(state["mem_img_logits"].to(self.device))
-        self.mem_mask_logits.copy_(state["mem_mask_logits"].to(self.device))
+        for key in self.memory_keys:
+            if state[key].shape != getattr(self, key).shape:
+                raise ValueError(f"Checkpoint shape mismatch for {key}")
+        for key in self.memory_keys:
+            getattr(self, key).copy_(state[key].to(self.device))
