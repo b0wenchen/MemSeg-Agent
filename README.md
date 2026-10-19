@@ -58,6 +58,31 @@ Neither dataset is redistributed here.
 
 ## Static-memory training
 
+### Choosing a static-memory parameterization
+
+The authors studied two parameterizations in their ablations:
+
+| Intended use | Optimization target | Memory representation |
+| --- | --- | --- |
+| Static-only segmentation | Directly train memory tokens (and their positional parameters) | Compact memory, described as “2M” memory size by the authors |
+| Static memory followed by test-time working-memory aggregation | Train pseudo-image and pseudo-mask logits through the frozen encoder | Encoder-generated static memory, composed with encoded corrected observations |
+
+According to the authors' ablation findings, the two approaches achieve
+similar static segmentation performance. This is an empirical observation,
+not a guarantee of identical predictions or performance in every setting.
+For the authors' workflow that subsequently aggregates test-time working
+memory, use the pseudo-observation training route.
+
+Here, “2M” denotes the compact memory size in the authors' terminology; it
+does not denote the number of trainable pseudo-image and pseudo-mask logits.
+Storage in bytes depends on tensor shapes, dtype, and whether positional
+encodings are included, and should be reported separately from parameter count.
+
+**Release scope:** `MemSegAgent` and `scripts/train_static.py` currently implement
+the pseudo-observation route. The original workspace's `5F_Supmem_3.py` contains
+the direct-token ablation (`learnable_memory`, `learnable_memory_pos`); a
+direct-token training entry point has not yet been ported into this release.
+
 ```bash
 cp configs/default.yaml configs/acdc_lv.yaml
 # Edit paths, target_class, num_classes, and output_dir.
@@ -94,6 +119,8 @@ python scripts/fedavg_memories.py \
 
 The helper aggregates only pseudo-observation tensors; no raw data, SAM2
 parameters, DINO features, or working-memory entries are communicated.
+Its communication payload therefore follows the pseudo-observation tensors,
+not the compact “2M” memory size discussed for static-only direct-token training.
 
 ## Verification
 

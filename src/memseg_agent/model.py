@@ -18,6 +18,15 @@ class MemSegAgent(nn.Module):
     ``mem_mask_logits``. SAM2 and its memory encoder stay frozen. Corrected
     observations can be encoded into the same space through
     :meth:`encode_observation` and composed at inference time.
+
+    Parameterization choice (authors' ablation findings): static-only use can
+    directly optimize compact memory tokens (the authors' "2M" memory size).
+    For subsequent test-time working-memory aggregation, the authors' workflow
+    instead trains pseudo-image/mask logits through the frozen encoder, as
+    implemented here. They report similar static performance for the two
+    routes; this does not imply identical outputs. "2M" is a memory-size
+    description, not the parameter count of these pseudo-observation logits.
+    Direct-token training is not implemented by this class.
     """
 
     def __init__(self, sam2_config: str | Path, sam2_checkpoint: str | Path, target_class: int = 1) -> None:

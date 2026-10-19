@@ -1,5 +1,12 @@
 #!/usr/bin/env python
-"""Train only MemSeg-Agent static pseudo-observations for one patient split."""
+"""Train static pseudo-observations for subsequent working-memory aggregation.
+
+This entry point optimizes pseudo-image and pseudo-mask logits through frozen
+SAM2 encoders. The authors also studied direct compact-memory optimization
+("2M" memory size) for static-only use, with similar static performance in
+their ablations. That alternative is not implemented by this entry point.
+See README.md for the distinction between memory size and parameter count.
+"""
 
 from __future__ import annotations
 
