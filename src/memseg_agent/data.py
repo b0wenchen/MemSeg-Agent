@@ -32,9 +32,10 @@ class SliceInfo:
 class NiftiSliceDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
     """Paired NIfTI volumes with optional patient identities from a mapping CSV."""
 
-    def __init__(self, root: str | Path, num_classes: int | None = None) -> None:
+    def __init__(self, root: str | Path, num_classes: int | None = None, mapping_id_column: str = "patient_id") -> None:
         self.root = Path(root)
         self.num_classes = num_classes
+        self.mapping_id_column = mapping_id_column
         self._patient_by_key = self._read_mapping()
         image_paths = sorted(self.root.glob("image_*.nii*"), key=lambda p: _numeric_key(p, "image_"))
         label_paths = sorted(self.root.glob("label_*.nii*"), key=lambda p: _numeric_key(p, "label_"))
@@ -77,10 +78,10 @@ class NiftiSliceDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
             return {}
         with mapping_path.open("r", newline="", encoding="utf-8-sig") as handle:
             reader = csv.DictReader(handle)
-            required = {"new_index", "patient_id"}
+            required = {"new_index", self.mapping_id_column}
             if not required.issubset(reader.fieldnames or set()):
                 raise ValueError(f"{mapping_path} needs columns {sorted(required)}")
-            return {str(int(float(row["new_index"]))): str(row["patient_id"]) for row in reader}
+            return {str(int(float(row["new_index"]))): str(row[self.mapping_id_column]) for row in reader}
 
     def __len__(self) -> int:
         return len(self.slice_info)

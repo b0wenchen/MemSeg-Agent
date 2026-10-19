@@ -1,0 +1,18 @@
+# All eight selected sequences are test-only. Train static memory on CAMUS.
+dataset_name: CardiacUDA
+evaluation_set: external
+expected_external_volumes: 8
+mapping_id_column: base
+data_root: /path/to/CardiacUDA_test_new
+sam2_config: configs/sam2.1/sam2.1_hiera_t.yaml
+sam2_checkpoint: /path/to/sam2.1_hiera_tiny.pt
+seed: 42
+device: auto
+num_classes: 4
+target_class: 1  # LV; use 3 for LA
+eval_profile: cross_domain  # Final cross_test.py: unscaled static mask, hard decoder
+dino_model_id: facebook/dinov3-vitb16-pretrain-lvd1689m
+working_memory_capacity: 64
+working_memory_top_k: 3
+working_memory_add_similarity: 0.95
+working_memory_min_foreground: 100

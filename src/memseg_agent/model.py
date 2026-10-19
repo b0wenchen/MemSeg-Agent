@@ -25,11 +25,14 @@ class MemSegAgent(nn.Module):
     Both routes share the same memory attention, decoder, and training loss.
     """
 
-    def __init__(self, sam2_config: str | Path, sam2_checkpoint: str | Path, target_class: int = 1, memory_mode: str = "pseudo_observation") -> None:
+    def __init__(self, sam2_config: str | Path, sam2_checkpoint: str | Path, target_class: int = 1, memory_mode: str = "pseudo_observation", eval_profile: str = "training") -> None:
         super().__init__()
         if memory_mode not in {"pseudo_observation", "direct_tokens"}:
             raise ValueError(f"Unknown memory_mode: {memory_mode}")
         self.memory_mode = memory_mode
+        if eval_profile not in {"training", "cross_domain"}:
+            raise ValueError(f"Unknown eval_profile: {eval_profile}")
+        self.eval_profile = eval_profile
         try:
             from sam2.build_sam import build_sam2
         except ImportError as exc:  # pragma: no cover - external dependency
@@ -104,7 +107,10 @@ class MemSegAgent(nn.Module):
         """Return direct parameters or encode the optimized pseudo-observation."""
         if self.memory_mode == "direct_tokens":
             return self.learnable_memory, self.learnable_memory_pos
-        return self._tokens_from_memory_encoder(torch.sigmoid(self.mem_img_logits), torch.sigmoid(self.mem_mask_logits))
+        mask = torch.sigmoid(self.mem_mask_logits)
+        # Our final cross_test.py uses unscaled static pseudo-masks. Only
+        # corrected observations are scaled to [-10, 10] in encode_observation.
+        return self._tokens_from_memory_encoder(torch.sigmoid(self.mem_img_logits), mask)
 
     @torch.no_grad()
     def encode_observation(self, image: torch.Tensor, mask: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
@@ -173,6 +179,10 @@ class MemSegAgent(nn.Module):
             repeat_image=False,
             high_res_features=[backbone["backbone_fpn"][0], backbone["backbone_fpn"][1]],
         )
+        if not self.training and self.eval_profile == "cross_domain":
+            masks = torch.where(objectness.reshape(-1, 1, 1, 1) > 0, masks, -1024.0)
+            indices = ious.argmax(dim=-1)
+            return masks[torch.arange(batch_size, device=self.device), indices].float().unsqueeze(1), objectness
         floor = -6.0 if self.training else -1024.0
         object_probability = torch.sigmoid(objectness).view(-1, 1, 1, 1)
         masks = object_probability * masks + (1 - object_probability) * floor

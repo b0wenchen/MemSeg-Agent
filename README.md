@@ -11,10 +11,10 @@ space. See [our paper](https://arxiv.org/abs/2603.05873).
 | Module | Location | Updated parameters/state |
 | --- | --- | --- |
 | Supervised static memory | `scripts/train_static.py` | Direct memory tokens or pseudo-image/mask logits; SAM2 is frozen |
-| Few-shot memory | `memseg_agent.fewshot` | Non-parametric tokens from support pairs |
+| Few-shot memory | `scripts/eval_working_memory.py --support-root` | Non-parametric tokens from separate labeled support pairs |
 | Test-time working memory | `scripts/eval_working_memory.py` | Bounded DINOv3 retrieval buffer with gated EMA updates |
-| Agentic composition | `memseg_agent.controller` | Transparent static/few-shot/working routing policy |
-| Federated static memory | `scripts/fedavg_memories.py` | Only the two static-memory tensors are averaged |
+| Agentic composition | `scripts/eval_working_memory.py --prototype-root` | Explicit prototype-similarity routing policy |
+| Federated static memory | `scripts/train_federated.py` | Local training and FedAvg of pseudo-observation tensors |
 
 Raw datasets, annotations, checkpoints, experiment outputs, local paths, and
 vendored SAM2/MONAI/DINO code are intentionally excluded. Install external
@@ -35,6 +35,16 @@ copy `configs/default.yaml` and set `sam2_checkpoint` to your local weight file.
 Keep `sam2_config` as the SAM2 package config name (for example,
 `configs/sam2.1/sam2.1_hiera_t.yaml`). The optional DINOv3 retrieval model is downloaded from Hugging
 Face and may require access approval.
+
+Before a reproducibility run, record the actual dependencies and weight hash:
+
+```bash
+python scripts/record_environment.py --output outputs/environment.json --checkpoint /path/to/sam2.1_hiera_tiny.pt
+```
+
+Check `sam2_import` in that file: another checkout (for example MedSAM2) on
+`PYTHONPATH` can shadow the intended SAM2 installation. This snapshot records
+the local environment; it is not a validated clean-install lockfile.
 
 ## Data Description
 
@@ -80,14 +90,31 @@ normalization and repeats the grayscale image across three channels; the model
 then resizes inputs to 1024 × 1024 for SAM2. We perform training and inference
 slice by slice and aggregate predictions for volume/sequence-level evaluation.
 
-The current release expects preprocessed NIfTI files; it does not yet include
-the dataset-specific preprocessing scripts. Our original preprocessing includes
-annotation-centered crops (a shared crop across frames for CardiacUDA), so the
+We provide dataset-specific preprocessing through `scripts/preprocess_data.py`.
+Our ACDC/CAMUS/CardiacUDA preprocessing includes annotation-centered crops
+(a shared crop across frames for CardiacUDA); CHAOS uses image-center crops, so the
 preprocessing protocol must be preserved when comparing results. The paper
 describes 0.5 × 0.5 mm in-plane resampling, but the archived ACDC script defaults
 to 1.25 × 1.25 × 7.70 mm and the CardiacUDA export uses pixel resizing with unit
 spacing. We have not yet reconciled these settings against every reported run;
-the current loader does not enforce physical-spacing resampling.
+the current loader does not enforce physical-spacing resampling. Our archived
+CHAOS preprocessing also defaults to 1.25 × 1.25 × 7.70 mm. We preserve these
+defaults and expose `--spacing` rather than silently changing the protocol.
+
+```bash
+pip install -e '.[preprocessing]'
+python scripts/preprocess_data.py --dataset acdc --root /path/to/ACDC/training --output data/acdc
+python scripts/preprocess_data.py --dataset camus --root /path/to/CAMUS/database_nifti --output data/camus
+# Install dcm2niix separately for raw CHAOS DICOM + PNG conversion.
+python scripts/preprocess_data.py --dataset chaos --raw-chaos --root /path/to/CHAOS/MR --output data/chaos
+# Or omit --raw-chaos and provide paired converted image_<id>/label_<id> NIfTI files.
+python scripts/preprocess_data.py --dataset cardiacuda --root /path/to/label_all_frame --output data/cardiacuda
+```
+
+We refuse to overwrite existing preprocessing output directories and save the
+effective settings in `preprocessing.json`. For CHAOS, verify DICOM/PNG alignment
+visually after conversion. The MRI dataset contains 40 subjects overall; our
+20-subject count refers to its labeled training subset, not the full MRI dataset.
 
 ### Input format and patient-level splits
 
@@ -108,9 +135,10 @@ fold, then one quarter of the remaining patients form the validation set.
 This gives 60/20/20 patients for ACDC, 300/100/100 for CAMUS, and 12/4/4 for
 CHAOS per fold. These are our experimental splits, not the providers' official
 challenge splits. Our external CardiacUDA benchmark uses all eight selected
-patients for testing rather than applying this in-domain split. The current
-evaluation CLI still uses the in-domain splitter; a full external-set entry
-point has not yet been included in this release.
+patients for testing rather than applying this in-domain split. We use
+`configs/cardiacuda_external.yaml` to evaluate all eight sequences without any
+training/validation partition. Its `mapping_id_column: base` accepts our original
+CardiacUDA CSV; these eight selected sequences identify eight distinct patients.
 
 For ACDC and CAMUS, provide a complete `index_mapping.csv` with `new_index`
 and `patient_id`, so phases and views remain grouped. For CHAOS, each file ID
@@ -167,6 +195,47 @@ python scripts/eval_working_memory.py --config configs/acdc_lv.yaml --fold 0 \
 
 We also support `--static-only` with pseudo-observation checkpoints for comparison.
 
+### Fixed splits and reduced-label experiments
+
+```bash
+python scripts/make_splits.py --data-root /path/to/preprocessed_dataset --output splits/camus
+python scripts/run_experiments.py --config configs/camus_lv.yaml --split-dir splits/camus --fractions 1.0 0.1 0.3
+```
+
+Copy `configs/default.yaml` to create `configs/camus_lv.yaml` and set local paths
+first. Fractions select patients **within the training partition**, rounded up;
+validation and test patients do not change. This denominator is explicit and
+must be matched to the reported experiment before comparing results. Each
+checkpoint records patient IDs, and each training directory contains `split.json`.
+Pass that file to evaluation with `--split-manifest` to reuse the exact split.
+
+### Explicit inference profiles
+
+We use our final `cross_test.py` implementation as the reference for cross-domain
+inference. External evaluation selects `cross_domain` by default, for both
+static-only and static-plus-working-memory runs. Static training is unchanged:
+
+| `--eval-profile` | Static pseudo-mask input to memory encoder | Decoder at evaluation |
+| --- | --- | --- |
+| `training` (in-domain default) | `sigmoid(logits)` | Soft objectness mixing and IoU-weighted masks, as in `img_supmem_5F.py` |
+| `cross_domain` (external default) | `sigmoid(logits)` **without scaling** | Hard objectness gate and highest-IoU mask, as in `cross_test.py` |
+
+We do not apply `20 * mask - 10` to the learned static pseudo-mask. We still
+apply that scaling to corrected observation masks when encoding working memory,
+matching `cross_test.py`. The older scaled-static `adaptive_legacy` profile has
+been removed to avoid mixing protocols; replace it with `cross_domain` in older
+configs. We record the selected profile in evaluation JSON. This alignment covers
+mask encoding and decoding, not equivalence of the complete online trajectory:
+buffer capacity, retrieval count and update-gate settings must also match a run.
+With an original CAMUS pseudo-observation checkpoint, our four-frame regression
+probe matches `cross_test.py` exactly for static tokens, corrected-observation
+tokens, static-only logits, and logits with the same working-memory entry.
+
+We retain both direct-token and pseudo-observation static training. Some static
+experiments were run on a separate server; local direct-token logs alone do not
+identify the parameterization of all our final static results. Our cross-domain
+workflow uses pseudo-observation checkpoints.
+
 ## Test-time working memory
 
 ```bash
@@ -183,7 +252,61 @@ used only when its prediction Dice is below the threshold, as a stand-in for a
 clinician correction. In deployment, replace this with an audited human
 feedback workflow; model predictions are never written as corrections.
 
+We score each prediction **before** adding its correction, retain the buffer
+across the ordered test stream, and report per-volume/sequence Dice in JSON
+(`--output`). If prediction and ground truth are both empty, Dice is **1**.
+
+### External cross-domain test: CardiacUDA
+
+```bash
+# Set local paths in configs/cardiacuda_external.yaml. Use a CAMUS-trained checkpoint.
+python scripts/eval_working_memory.py --config configs/cardiacuda_external.yaml \
+  --static-checkpoint /path/to/camus_best_static_memory.pt --static-only \
+  --output outputs/cardiacuda_static.json
+```
+
+We check that all eight sequences are present. CardiacUDA is never used for
+gradient training, validation, or checkpoint selection; training scripts reject
+external-set configs. Omit `--static-only` only for the separately reported
+oracle-feedback working-memory experiment. This uses test-time corrections
+after scoring, not supervised training on the external dataset.
+
+### Few-shot and controller composition
+
+```bash
+python scripts/eval_working_memory.py --config configs/camus_lv.yaml \
+  --static-checkpoint /path/to/best_static_memory.pt \
+  --support-root /path/to/separate_labeled_supports --support-slices 1 \
+  --prototype-root /path/to/training_domain_prototypes \
+  --output outputs/composition.json
+```
+
+Support and prototype directories use the same paired NIfTI/CSV format and must
+not contain test patients. Use stable, dataset-qualified IDs across directories.
+We select the first requested foreground-containing support slices in file order
+and record their identities. The prototype is the normalized mean DINO embedding
+of up to 16 supplied training-domain slices. Our explicit controller retains
+static memory, adds few-shot memory below the similarity threshold, and adds
+retrieved working memory when available. Without `--prototype-root`, supports
+are always composed. `--static-only` disables feedback but still permits the
+explicit support set. This is a transparent policy implementation, not a claim
+that a learned agent or a particular published support selection is reproduced.
+
 ## Federated memory-only aggregation
+
+```bash
+python scripts/train_federated.py --config configs/camus_lv.yaml --fold 0 \
+  --sites 4 --rounds 10 --local-epochs 1
+```
+
+We provide a sequential single-process FedAvg simulation. Sites partition only
+training patients; by default the partition is seeded and random. To reproduce
+specific site assignments, supply `--site-manifest` with a JSON list of patient-ID
+lists. Local AdamW is reset each round, aggregation is weighted by training-slice
+count, and checkpoint selection uses validation patients only. This is not a
+distributed NVFlare deployment or a reconstruction of undocumented site splits.
+
+For already-trained client checkpoints, we also provide:
 
 ```bash
 python scripts/fedavg_memories.py \

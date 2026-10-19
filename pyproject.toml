@@ -21,6 +21,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+preprocessing = ["SimpleITK>=2.3", "scipy>=1.12", "opencv-python-headless>=4.8", "Pillow>=10.0"]
 retrieval = ["transformers>=4.48", "Pillow>=10.0"]
 metrics = ["scipy>=1.12"]
 dev = ["pytest>=8.0", "ruff>=0.9"]

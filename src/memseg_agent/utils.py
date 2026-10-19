@@ -48,3 +48,8 @@ def binary_dice(prediction: torch.Tensor, target: torch.Tensor, eps: float = 1e-
     inter = (prediction & target).sum().item()
     total = prediction.sum().item() + target.sum().item()
     return float((2 * inter + eps) / (total + eps))
+
+
+def dice_from_counts(twice_intersection: int, denominator: int) -> float:
+    """Volume Dice: both empty is a correct prediction (1.0)."""
+    return twice_intersection / denominator if denominator else 1.0
