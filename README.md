@@ -36,9 +36,62 @@ Keep `sam2_config` as the SAM2 package config name (for example,
 `configs/sam2.1/sam2.1_hiera_t.yaml`). The optional DINOv3 retrieval model is downloaded from Hugging
 Face and may require access approval.
 
-## Data and patient-level protocol
+## Data Description
 
-The loader expects paired volumes and, for multi-volume patients, a mapping:
+We evaluate static-memory segmentation on ACDC, CAMUS, and CHAOS, and use
+CardiacUDA as an external benchmark for cross-domain evaluation. The counts
+below describe the subsets used in our experiments, not necessarily the full
+datasets available from their providers.
+
+| Dataset and source | Modality and subset used | Patients | Images / sequences used | Segmentation targets |
+| --- | --- | ---: | --- | --- |
+| [ACDC](https://www.creatis.insa-lyon.fr/Challenge/acdc/) | Short-axis cardiac cine MRI; annotated ED/ES phases from the training cohort | 100 | 200 3D volumes (two phases per patient) | Right ventricle (RV), myocardium (Myo), left ventricle (LV) |
+| [CAMUS](https://www.creatis.insa-lyon.fr/Challenge/camus/) | 2D echocardiography; apical two- and four-chamber views at ED/ES | 500 | 2,000 annotated 2D frames (two views × two phases per patient) | LV, Myo, left atrium (LA) |
+| [CHAOS](https://arxiv.org/abs/2001.06535) | Abdominal T2-SPIR MRI; labeled training subset | 20 | 20 3D volumes (one per patient) | Liver, right kidney (RK), left kidney (LK), spleen |
+| [CardiacUDA](https://github.com/XiaoweiXu/CardiacUDA-dataset) | External echocardiography; selected annotated apical four-chamber sequences | 8 | 8 sequences containing 428 annotated frames | LV and LA, aligned to the CAMUS label space |
+
+ED and ES denote end-diastole and end-systole. We use only the annotated ED/ES
+frames from CAMUS, whereas our CardiacUDA subset contains annotated frames
+throughout the selected sequences. We store each CAMUS frame as a singleton-depth
+NIfTI volume and each CardiacUDA sequence as a stack with time along the last
+axis. These storage units must not be counted as additional patients.
+
+For cross-domain evaluation, we train static memory on CAMUS and evaluate on
+the selected CardiacUDA subset. We evaluate LV and LA only; we do not treat
+unavailable CardiacUDA myocardium annotations as negative myocardium examples.
+When evaluating working memory, we use corrections after scoring each prediction,
+as described in the test-time evaluation section below.
+
+### Labels and preprocessing
+
+We train one binary segmentation task at a time using `target_class`. Background
+is `0`; the preprocessed label conventions are:
+
+| Dataset | Foreground label IDs | `num_classes` |
+| --- | --- | ---: |
+| ACDC | `1`: RV, `2`: Myo, `3`: LV | 4 |
+| CAMUS | `1`: LV, `2`: Myo, `3`: LA | 4 |
+| CHAOS | `1`: liver, `2`: RK, `3`: LK, `4`: spleen | 5 |
+| CardiacUDA (our remapped subset) | `1`: LV, `3`: LA; other structures mapped to background | 4 |
+
+Our experiments use preprocessed 256 × 256 slices/frames with upper-intensity
+clipping at the 99.5th percentile. The loader performs per-volume min–max
+normalization and repeats the grayscale image across three channels; the model
+then resizes inputs to 1024 × 1024 for SAM2. We perform training and inference
+slice by slice and aggregate predictions for volume/sequence-level evaluation.
+
+The current release expects preprocessed NIfTI files; it does not yet include
+the dataset-specific preprocessing scripts. Our original preprocessing includes
+annotation-centered crops (a shared crop across frames for CardiacUDA), so the
+preprocessing protocol must be preserved when comparing results. The paper
+describes 0.5 × 0.5 mm in-plane resampling, but the archived ACDC script defaults
+to 1.25 × 1.25 × 7.70 mm and the CardiacUDA export uses pixel resizing with unit
+spacing. We have not yet reconciled these settings against every reported run;
+the current loader does not enforce physical-spacing resampling.
+
+### Input format and patient-level splits
+
+We use paired volumes and a patient-identity mapping:
 
 ```text
 dataset/
@@ -48,14 +101,22 @@ dataset/
 └── index_mapping.csv  # columns: new_index, patient_id
 ```
 
-The supplied splitter prevents one patient's multiple volumes from crossing a
-boundary and implements a patient-level 3:1:1 train/validation/test protocol:
-an outer five-fold partition selects the test fold, then one quarter of the
-remaining patients are validation patients.
+We keep every patient's phases, views, and slices in the same split. For the
+in-domain datasets, our supplied splitter uses a patient-level 3:1:1
+train/validation/test protocol: an outer five-fold partition selects the test
+fold, then one quarter of the remaining patients form the validation set.
+This gives 60/20/20 patients for ACDC, 300/100/100 for CAMUS, and 12/4/4 for
+CHAOS per fold. These are our experimental splits, not the providers' official
+challenge splits. Our external CardiacUDA benchmark uses all eight selected
+patients for testing rather than applying this in-domain split. The current
+evaluation CLI still uses the in-domain splitter; a full external-set entry
+point has not yet been included in this release.
 
-The workspace preprocessing used in the paper contains ACDC: **100 patients,
-200 ED/ES volumes**; and CAMUS: **500 patients, 2,000 2CH/4CH × ED/ES volumes**.
-Neither dataset is redistributed here.
+For ACDC and CAMUS, provide a complete `index_mapping.csv` with `new_index`
+and `patient_id`, so phases and views remain grouped. For CHAOS, each file ID
+already identifies a single patient; the loader can use this ID when no mapping
+is present. We do not redistribute images or annotations. Obtain them from
+the linked dataset providers and follow their access and citation requirements.
 
 ## Static-memory training
 
