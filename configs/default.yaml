@@ -1,0 +1,23 @@
+# Paths are intentionally placeholders: datasets and SAM2 weights are not distributed.
+data_root: /path/to/preprocessed_dataset
+sam2_config: /path/to/sam2/configs/sam2.1/sam2.1_hiera_t.yaml
+sam2_checkpoint: /path/to/sam2.1_hiera_tiny.pt
+output_dir: outputs/static_memory
+
+seed: 42
+device: auto
+num_classes: 4
+target_class: 1
+batch_size: 8
+num_workers: 4
+epochs: 200
+learning_rate: 0.003
+weight_decay: 0.0001
+object_loss_weight: 0.3
+
+# Retrieval / test-time working memory
+dino_model_id: facebook/dinov3-vitb16-pretrain-lvd1689m
+working_memory_capacity: 64
+working_memory_top_k: 3
+working_memory_add_similarity: 0.95
+working_memory_min_foreground: 100

@@ -1,0 +1,5 @@
+This repository contains original MemSeg-Agent glue code only. It does not
+vendor SAM2 weights, SAM2 source, datasets, annotations, or experiment outputs.
+
+SAM2 must be obtained separately from Meta's official repository and used under
+its license. Dataset access and use are subject to each dataset's own terms.

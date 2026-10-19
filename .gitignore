@@ -1,0 +1,17 @@
+# Data, weights, and experiment products must remain outside source control.
+data/
+datasets/
+checkpoints/
+outputs/
+wandb/
+*.pt
+*.pth
+*.ckpt
+*.nii
+*.nii.gz
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+.DS_Store

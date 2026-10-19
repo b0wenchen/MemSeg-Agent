@@ -1,0 +1,4 @@
+# Install PyTorch matching your CUDA runtime first: https://pytorch.org/get-started/locally/
+-e .[retrieval,metrics,dev]
+# SAM2 is intentionally a dependency, not vendored into this repository.
+git+https://github.com/facebookresearch/sam2.git

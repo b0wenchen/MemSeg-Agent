@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "memseg-agent"
+version = "0.1.0"
+description = "Memory-augmented agent for medical image segmentation"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+authors = [{name = "MemSeg-Agent authors"}]
+dependencies = [
+  "torch>=2.5",
+  "torchvision>=0.20",
+  "numpy>=1.26",
+  "nibabel>=5.2",
+  "scikit-learn>=1.4",
+  "PyYAML>=6.0",
+  "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+retrieval = ["transformers>=4.48", "Pillow>=10.0"]
+metrics = ["scipy>=1.12"]
+dev = ["pytest>=8.0", "ruff>=0.9"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

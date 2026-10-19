@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use MemSeg-Agent, please cite the paper below."
+title: "MemSeg-Agent"
+version: 0.1.0
+date-released: 2026-03-06
+authors:
+  - family-names: Chen
+    given-names: Bowen
+doi: 10.48550/arXiv.2603.05873
+url: https://arxiv.org/abs/2603.05873
