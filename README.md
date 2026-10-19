@@ -4,6 +4,10 @@ We present **MemSeg-Agent**, a memory-augmented framework that
 shifts medical-image segmentation adaptation from backbone weights to memory
 space. See [our paper](https://arxiv.org/abs/2603.05873).
 
+**[Project page](https://b0wenchen.github.io/MemSeg-Agent/)** ·
+[Paper](https://arxiv.org/abs/2603.05873) ·
+[Code](https://github.com/b0wenchen/MemSeg-Agent)
+
 > Research code only; not a clinical device or clinical decision-support tool.
 
 ## Modules
@@ -321,6 +325,11 @@ Its communication payload therefore follows the pseudo-observation tensors,
 not the compact “2M” memory size discussed for static-only direct-token training.
 
 ## Verification
+
+Our GitHub Pages project website lives in `docs/`. It uses plain HTML/CSS/JS,
+without a build step. Edits to `docs/` on `main` automatically deploy through
+`.github/workflows/pages.yml`. Figures are from our published paper; displayed
+metrics are reported paper results, not results from a live inference service.
 
 ```bash
 python -m pytest -q
