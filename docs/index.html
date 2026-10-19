@@ -21,7 +21,7 @@
   <header class="nav-wrap">
     <nav class="nav container" aria-label="Main navigation">
       <a class="wordmark" href="#"><span class="mark" aria-hidden="true">m</span> MemSeg-Agent</a>
-      <div class="nav-links"><a href="#method">Method</a><a href="#results">Results</a><a href="#code">Code</a><a href="#citation">Cite</a></div>
+      <div class="nav-links"><a href="#method">Method</a><a href="#results">Results</a><a href="#federated">Federated learning</a><a href="#code">Code</a><a href="#citation">Cite</a></div>
       <a class="nav-paper" href="https://arxiv.org/abs/2603.05873">Read paper <span aria-hidden="true">↗</span></a>
     </nav>
   </header>
@@ -50,6 +50,19 @@
         <figure class="paper-figure"><a href="assets/framework.png" aria-label="Open the full-resolution framework figure"><img src="assets/framework.png" alt="MemSeg-Agent framework from the paper: static, few-shot and test-time working memories compose around a frozen segmentation backbone." width="1600" loading="lazy"></a><figcaption><span>Figure 1</span> Our memory-augmented framework. <a href="https://arxiv.org/html/2603.05873v1#S3">From our paper ↗</a></figcaption></figure>
         <div class="module-grid"><article><span class="module-number blue">01</span><h3>Supervised static memory</h3><p>Optimize compact memory tokens or pseudo-image and pseudo-mask logits while keeping SAM2 frozen.</p><a href="https://github.com/b0wenchen/MemSeg-Agent/blob/main/scripts/train_static.py">Training code ↗</a></article><article><span class="module-number violet">02</span><h3>Few-shot memory</h3><p>Encode labeled support pairs into non-parametric memory, without a new round of backbone training.</p><a href="https://github.com/b0wenchen/MemSeg-Agent/blob/main/src/memseg_agent/fewshot.py">Support encoding ↗</a></article><article><span class="module-number teal">03</span><h3>Test-time working memory</h3><p>Retrieve relevant observations and incorporate corrections through similarity-gated memory updates.</p><a href="https://github.com/b0wenchen/MemSeg-Agent/blob/main/src/memseg_agent/working_memory.py">Working-memory code ↗</a></article></div>
         <div class="method-note"><strong>Composition &amp; collaboration</strong><p>Our controller coordinates memory use. For federated learning, clients can exchange trained static-memory tensors rather than backbone weights.</p></div>
+      </div>
+    </section>
+    <section class="section federated-section" id="federated">
+      <div class="container">
+        <div class="section-heading"><div><p class="eyebrow">FEDERATED LEARNING</p><h2>Share memory. Not a foundation model.</h2></div><p>Lightweight communication for collaborative medical image segmentation.</p></div>
+        <div class="fl-intro"><p>Full-model federated fine-tuning repeatedly communicates a foundation model's weights. We instead keep the backbone frozen and exchange only task-specific static memory, while images and annotations remain at each site.</p><p>Our four-site FedAvg experiment achieves competitive segmentation performance with memory-only updates. See the <strong>Ours – Static Memory – FL</strong> row in <a href="https://arxiv.org/html/2603.05873v1#S4.T2">Table 2</a> for Dice and HD95 across CHAOS, ACDC, and CAMUS.</p></div>
+        <div class="fl-payloads">
+          <article class="fl-payload"><span class="tiny-label">DIRECT-TOKEN MEMORY</span><div class="fl-size">2 <span>MiB</span></div><h3>Compact memory exchange</h3><p>524,288 values, including memory tokens and their positional parameters.</p><strong class="fl-reduction">74.3× smaller payload</strong></article>
+          <article class="fl-payload"><span class="tiny-label">PSEUDO-IMAGE + MASK LOGITS</span><div class="fl-size">~4M <span>parameters</span></div><h3>Encoder-constrained memory</h3><p>4,194,304 values: a 3-channel pseudo-image and 1-channel pseudo-mask at 1024 × 1024. <strong>16 MiB in FP32.</strong></p><strong class="fl-reduction">9.3× smaller payload</strong></article>
+          <article class="fl-payload fl-baseline"><span class="tiny-label">FULL SAM2-TINY FINE-TUNING</span><div class="fl-size">148.63 <span>MiB</span></div><h3>Full-model exchange</h3><p>38,962,498 model parameters. Even the tiny backbone requires substantially more communication.</p><span class="fl-reference">FP32 reference payload</span></article>
+        </div>
+        <p class="fl-footnote">Payload accounting: uncompressed FP32 tensors per client, per one-way transmission; 1 MiB = 2²⁰ bytes. Ratios compare against full SAM2-tiny parameter exchange, not parameter-efficient fine-tuning. One upload plus one download doubles these sizes; total traffic also scales with clients and rounds. We exclude protocol overhead, optimizer state and one-time backbone distribution. “~4M” is a parameter count, not 4 MB; the 2 MiB compact memory is not the pseudo-observation payload.</p>
+        <div class="fl-links"><a class="button primary" href="https://arxiv.org/html/2603.05873v1#S4.T2">Competitive performance · Table 2 ↗</a><a class="text-link" href="https://github.com/b0wenchen/MemSeg-Agent/blob/main/scripts/train_federated.py">Explore the FedAvg implementation →</a></div>
       </div>
     </section>
     <section class="section container" id="results">
