@@ -20,4 +20,12 @@
 .fl-links{display:flex;align-items:center;gap:25px;flex-wrap:wrap}
 @media(max-width:900px){.fl-payload{padding:19px}.fl-size{font-size:35px}.fl-size span{font-size:12px}.nav-links{gap:12px;font-size:12px}}
 @media(max-width:650px){.fl-intro,.fl-payloads{grid-template-columns:1fr;gap:18px}.fl-size{font-size:42px}.fl-payload p{margin-bottom:15px}.fl-links{gap:18px}.fl-footnote{font-size:10px}}
+.acknowledgement-section{padding:48px 0;background:#fff;border-top:1px solid var(--line)}
+.acknowledgement-layout{display:flex;align-items:center;justify-content:space-between;gap:36px}
+.acknowledgement-layout h2{font-size:26px;margin-bottom:12px}
+.acknowledgement-layout .eyebrow{margin-bottom:14px}
+.acknowledgement-layout p:not(.eyebrow){font-size:14px;color:var(--muted);margin:0}
+.supporter-logo{display:block;flex-shrink:0;background:#fff;padding:12px}
+.supporter-logo img{width:280px;height:auto}
+@media(max-width:650px){.acknowledgement-layout{flex-direction:column;align-items:flex-start;gap:16px}.acknowledgement-layout h2{font-size:24px}.supporter-logo{align-self:center}.supporter-logo img{width:240px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{transition:none!important}}

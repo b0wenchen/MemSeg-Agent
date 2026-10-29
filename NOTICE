@@ -3,3 +3,10 @@ vendor SAM2 weights, SAM2 source, datasets, annotations, or experiment outputs.
 
 SAM2 must be obtained separately from Meta's official repository and used under
 its license. Dataset access and use are subject to each dataset's own terms.
+
+The NVIDIA logo in docs/assets/nvidia-logo.svg is an unmodified NVIDIA brand
+asset obtained from:
+https://www.nvidia.com/content/dam/en-zz/Solutions/about-nvidia/logo-and-brand/nvidia-logo-vert.svg
+NVIDIA and the NVIDIA logo are trademarks of NVIDIA Corporation. The logo is
+not covered by this repository's software license. Brand usage guidance:
+https://www.nvidia.com/en-gb/about-nvidia/legal-info/logo-brand-usage/

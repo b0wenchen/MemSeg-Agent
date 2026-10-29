@@ -349,3 +349,9 @@ python -m compileall -q src scripts
 
 Please also cite and comply with the licenses of SAM2, DINOv3, and the data
 sources used in an experiment.
+
+## Acknowledgements
+
+<a href="https://www.nvidia.com/"><img src="docs/assets/nvidia-logo.svg" alt="NVIDIA" width="280"></a>
+
+We gratefully acknowledge NVIDIA for supporting our research on MemSeg-Agent.
