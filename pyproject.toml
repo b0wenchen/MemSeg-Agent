@@ -21,10 +21,17 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+workbench = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1", "Pillow>=10.0", "transformers>=4.56"]
 preprocessing = ["SimpleITK>=2.3", "scipy>=1.12", "opencv-python-headless>=4.8", "Pillow>=10.0"]
 retrieval = ["transformers>=4.48", "Pillow>=10.0"]
 metrics = ["scipy>=1.12"]
-dev = ["pytest>=8.0", "ruff>=0.9"]
+dev = ["pytest>=8.0", "ruff>=0.9", "httpx>=0.27"]
+
+[project.scripts]
+memseg-workbench = "memseg_agent.interactive.server:main"
+
+[tool.setuptools.package-data]
+"memseg_agent.interactive" = ["web/*.html", "web/*.css", "web/*.js"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

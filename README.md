@@ -19,10 +19,34 @@ space. See [our paper](https://arxiv.org/abs/2603.05873).
 | Test-time working memory | `scripts/eval_working_memory.py` | Bounded DINOv3 retrieval buffer with gated EMA updates |
 | Agentic composition | `scripts/eval_working_memory.py --prototype-root` | Explicit prototype-similarity routing policy |
 | Federated static memory | `scripts/train_federated.py` | Local training and FedAvg of pseudo-observation tensors |
+| Interactive workbench + Python API | [`plugins/workbench`](plugins/workbench/README.md) | Few-shot examples and explicitly reviewed corrections; frozen models, no static memory |
 
 Raw datasets, annotations, checkpoints, experiment outputs, local paths, and
 vendored SAM2/MONAI/DINO code are intentionally excluded. Install external
 dependencies and use all datasets under their respective licenses.
+
+## Interactive segmentation
+
+Our [MemSeg Workbench](plugins/workbench/README.md) brings few-shot and working
+memory to a local browser. Upload a labeled example, segment a new image, and
+paint corrections. After you explicitly confirm a mask, we store its image/mask
+pair in working memory to guide later images. Predictions never enter memory
+automatically. This workflow requires no static-memory training or checkpoint.
+
+After installing SAM2 and obtaining its pretrained weights:
+
+```bash
+pip install -e '.[workbench]'
+memseg-workbench --sam2-checkpoint /path/to/sam2.1_hiera_tiny.pt --target "Left ventricle"
+# Open http://127.0.0.1:8765
+```
+
+We include a reusable `SegmentationSession` Python API, mask editing, memory
+inspection/deletion, and local export/import. The first release supports 2D
+8-bit PNG/JPEG images and one binary target per session. It preserves individual
+reviewed cases, rather than applying the experimental EMA update rule.
+See the [workbench guide](plugins/workbench/README.md) for setup, API examples,
+data handling, and validation scope.
 
 ## Installation
 

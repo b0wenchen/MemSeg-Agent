@@ -1,0 +1,37 @@
+name: Workbench checks
+
+on:
+  push:
+    paths:
+      - 'src/**'
+      - 'tests/test_interactive.py'
+      - 'pyproject.toml'
+      - '.github/workflows/workbench.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'tests/test_interactive.py'
+      - 'pyproject.toml'
+      - '.github/workflows/workbench.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  session-and-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install CPU test dependencies
+        run: |
+          python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -e '.[workbench,dev]'
+      - name: Check the session and local API without model downloads
+        run: python -m pytest tests/test_interactive.py -q
+      - name: Check browser JavaScript
+        run: node --check src/memseg_agent/interactive/web/app.js

@@ -23,11 +23,13 @@ class MemSegAgent(nn.Module):
     pseudo-observations. Use ``direct_tokens`` for static-only training and
     ``pseudo_observation`` for our subsequent working-memory aggregation route.
     Both routes share the same memory attention, decoder, and training loss.
+    ``none`` allocates no static parameters and is used by the interactive
+    few-shot/working-memory API with ``use_static_memory=False``.
     """
 
     def __init__(self, sam2_config: str | Path, sam2_checkpoint: str | Path, target_class: int = 1, memory_mode: str = "pseudo_observation", eval_profile: str = "training") -> None:
         super().__init__()
-        if memory_mode not in {"pseudo_observation", "direct_tokens"}:
+        if memory_mode not in {"pseudo_observation", "direct_tokens", "none"}:
             raise ValueError(f"Unknown memory_mode: {memory_mode}")
         self.memory_mode = memory_mode
         if eval_profile not in {"training", "cross_domain"}:
@@ -45,7 +47,7 @@ class MemSegAgent(nn.Module):
         if memory_mode == "pseudo_observation":
             self.mem_img_logits = nn.Parameter(torch.randn(1, 3, 1024, 1024) * 0.02)
             self.mem_mask_logits = nn.Parameter(torch.randn(1, 1, 1024, 1024) * 0.02 + 2.0)
-        else:
+        elif memory_mode == "direct_tokens":
             # Infer token dimensions through the encoder, as in the original
             # direct-memory ablation; no pseudo-observations are optimized.
             with torch.no_grad():
@@ -62,6 +64,8 @@ class MemSegAgent(nn.Module):
 
     @property
     def device(self) -> torch.device:
+        if self.memory_mode == "none":
+            return next(self.sam2.parameters()).device
         return next(self.memory_parameters()).device
 
     def memory_parameters(self):
@@ -70,7 +74,9 @@ class MemSegAgent(nn.Module):
             yield getattr(self, key)
 
     @property
-    def memory_keys(self) -> tuple[str, str]:
+    def memory_keys(self) -> tuple[str, ...]:
+        if self.memory_mode == "none":
+            return ()
         if self.memory_mode == "direct_tokens":
             return ("learnable_memory", "learnable_memory_pos")
         return ("mem_img_logits", "mem_mask_logits")
@@ -105,6 +111,8 @@ class MemSegAgent(nn.Module):
 
     def static_tokens(self) -> tuple[torch.Tensor, torch.Tensor]:
         """Return direct parameters or encode the optimized pseudo-observation."""
+        if self.memory_mode == "none":
+            raise ValueError("This model has no static memory; pass use_static_memory=False")
         if self.memory_mode == "direct_tokens":
             return self.learnable_memory, self.learnable_memory_pos
         mask = torch.sigmoid(self.mem_mask_logits)
