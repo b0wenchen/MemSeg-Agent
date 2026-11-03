@@ -164,11 +164,19 @@ class SegmentationSession:
         return self.current
 
     def predict(self, case_id):
-        with self.lock, torch.inference_mode():
+        with self.lock:
             query = self._query(case_id)
+            prediction, retrieved = self.predict_image(query["image"])
+            self.prediction = prediction.copy()
+            return prediction, retrieved
+
+    def predict_image(self, image):
+        """Infer a slice atomically without replacing the browser's current query."""
+        with self.lock, torch.inference_mode():
+            image = normalize_image(image)
             if not self.cases:
                 raise ValueError("Add at least one labeled few-shot example first")
-            tensor = self.tensor(query["image"])
+            tensor = self.tensor(image)
             key = F.normalize(self.embedder.encode(tensor).float().cpu().flatten(), dim=0)
             if not torch.isfinite(key).all() or key.norm() == 0:
                 raise ValueError("Invalid retrieval embedding")
@@ -185,14 +193,14 @@ class SegmentationSession:
             )
             probability = F.interpolate(
                 logits.sigmoid(),
-                size=query["image"].shape[:2],
+                size=image.shape[:2],
                 mode="bilinear",
                 align_corners=False,
             )[0, 0]
             if not torch.isfinite(probability).all():
                 raise ValueError("Model produced non-finite predictions")
-            self.prediction = (probability >= 0.5).cpu().numpy().copy()
-            return self.prediction.copy(), [
+            prediction = (probability >= 0.5).cpu().numpy().copy()
+            return prediction, [
                 {"id": c.id, "name": c.name, "bank": c.bank, "similarity": score}
                 for score, c in retrieved
             ]
@@ -204,6 +212,13 @@ class SegmentationSession:
         with self.lock:
             query = self._query(case_id)
             return self._add(query["image"], mask, query["name"], "working")
+
+    def add_correction(self, image, mask, name="Correction", *, confirmed=False):
+        """Save an explicitly reviewed image/mask pair from an external editor."""
+        if confirmed is not True:
+            raise ValueError("Confirm that the mask has been reviewed before saving")
+        with self.lock:
+            return self._add(image, mask, name, "working")
 
     def remove(self, memory_id):
         with self.lock:

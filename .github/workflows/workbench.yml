@@ -5,12 +5,18 @@ on:
     paths:
       - 'src/**'
       - 'tests/test_interactive.py'
+      - 'tests/test_slicer_adapter.py'
+      - 'plugins/slicer/**'
+      - 'scripts/package_slicer.py'
       - 'pyproject.toml'
       - '.github/workflows/workbench.yml'
   pull_request:
     paths:
       - 'src/**'
       - 'tests/test_interactive.py'
+      - 'tests/test_slicer_adapter.py'
+      - 'plugins/slicer/**'
+      - 'scripts/package_slicer.py'
       - 'pyproject.toml'
       - '.github/workflows/workbench.yml'
 
@@ -32,6 +38,8 @@ jobs:
           python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
           python -m pip install -e '.[workbench,dev]'
       - name: Check the session and local API without model downloads
-        run: python -m pytest tests/test_interactive.py -q
+        run: python -m pytest tests/test_interactive.py tests/test_slicer_adapter.py -q
+      - name: Build the Slicer source distribution
+        run: python scripts/package_slicer.py --output-dir outputs/slicer-release
       - name: Check browser JavaScript
         run: node --check src/memseg_agent/interactive/web/app.js

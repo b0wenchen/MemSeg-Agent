@@ -12,6 +12,7 @@ import numpy as np
 from PIL import Image, UnidentifiedImageError
 
 from .session import MAX_ARCHIVE_BYTES, MAX_PIXELS, SegmentationSession, decoded_array, png_bytes
+from .wire import pack_array, unpack_array
 
 
 def data_url(array):
@@ -82,6 +83,24 @@ def create_app(session: SegmentationSession):
 
     def execute(action, body):
         with session.lock:
+            if action == "slice-predict":
+                mask, retrieved = session.predict_image(unpack_array(body["image"]))
+                return {"mask": pack_array(mask), "retrieved": retrieved}
+            if action == "slice-support":
+                session.add_support(
+                    unpack_array(body["image"]),
+                    unpack_array(body["mask"], mask=True),
+                    body.get("name", "Support slice"),
+                )
+                return session.summary()
+            if action == "slice-correct":
+                session.add_correction(
+                    unpack_array(body["image"]),
+                    unpack_array(body["mask"], mask=True),
+                    body.get("name", "Reviewed slice"),
+                    confirmed=body.get("confirmed", False),
+                )
+                return session.summary()
             if action == "support":
                 session.add_support(
                     decode_image(body["image"]),
@@ -133,6 +152,9 @@ def create_app(session: SegmentationSession):
                 "correct",
                 "remove",
                 "reset",
+                "slice-predict",
+                "slice-support",
+                "slice-correct",
             ):
                 raise HTTPException(404, "Unknown action")
             return await run_in_threadpool(execute, action, await json_body(request))
@@ -159,6 +181,15 @@ def create_app(session: SegmentationSession):
     @app.get("/api/state")
     def state():
         return session.summary()
+
+    @app.get("/api/capabilities")
+    def capabilities():
+        return {
+            "protocol": "memseg-slicer-v1",
+            "max_pixels": MAX_PIXELS,
+            "static_memory": False,
+            "slice_actions": ["slice-predict", "slice-support", "slice-correct"],
+        }
 
     @app.get("/api/export")
     def export():

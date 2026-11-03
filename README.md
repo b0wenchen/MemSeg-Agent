@@ -20,12 +20,19 @@ space. See [our paper](https://arxiv.org/abs/2603.05873).
 | Agentic composition | `scripts/eval_working_memory.py --prototype-root` | Explicit prototype-similarity routing policy |
 | Federated static memory | `scripts/train_federated.py` | Local training and FedAvg of pseudo-observation tensors |
 | Interactive workbench + Python API | [`plugins/workbench`](plugins/workbench/README.md) | Few-shot examples and explicitly reviewed corrections; frozen models, no static memory |
+| 3D Slicer extension | [`plugins/slicer`](plugins/slicer/README.md) | Volume slices, Segment Editor corrections, and the same reviewed memory banks |
 
 Raw datasets, annotations, checkpoints, experiment outputs, local paths, and
 vendored SAM2/MONAI/DINO code are intentionally excluded. Install external
 dependencies and use all datasets under their respective licenses.
 
 ## Interactive segmentation
+
+We also provide a [3D Slicer extension](plugins/slicer/README.md) for volume
+loading, slice/range inference, and manual corrections in Segment Editor. It
+uses our local backend and preserves the reference volume geometry. We include
+a source-bundle builder and [Hugging Face release card](release/huggingface/README.md)
+for a future Hub release; the plugin is not a hosted inference service.
 
 Our [MemSeg Workbench](plugins/workbench/README.md) brings few-shot and working
 memory to a local browser. Upload a labeled example, segment a new image, and

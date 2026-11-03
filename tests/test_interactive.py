@@ -225,3 +225,40 @@ def test_api_rejects_colored_transparent_and_high_bit_masks(client, session):
         response = client.post("/api/support", json={"image": url(image), "mask": url(invalid)})
         assert response.status_code == 400, response.text
     assert session.cases == []
+
+
+def test_slicer_slice_api_is_atomic_and_preserves_browser_query(client, session):
+    from memseg_agent.interactive.wire import pack_array, unpack_array
+
+    image, mask = case()
+    assert client.get("/api/capabilities").json()["protocol"] == "memseg-slicer-v1"
+    support = {"image": pack_array(image), "mask": pack_array(mask), "name": "Support K=0"}
+    assert client.post("/api/slice-support", json=support).status_code == 200
+    browser_query = session.set_query(case(160)[0], "Browser query")
+    browser_prediction, _ = session.predict(browser_query)
+    result = client.post("/api/slice-predict", json={"image": pack_array(case(200)[0])})
+    assert result.status_code == 200, result.text
+    np.testing.assert_array_equal(unpack_array(result.json()["mask"], mask=True), mask)
+    assert session.current["id"] == browser_query
+    np.testing.assert_array_equal(session.prediction, browser_prediction)
+    assert len(session.cases) == 1
+    correction = {"image": pack_array(case(200)[0]), "mask": pack_array(1 - mask)}
+    assert client.post("/api/slice-correct", json=correction).status_code == 400
+    correction["confirmed"] = True
+    assert client.post("/api/slice-correct", json=correction).status_code == 200
+    result = client.post("/api/slice-predict", json={"image": pack_array(case(220)[0])}).json()
+    assert {entry["bank"] for entry in result["retrieved"]} == {"fewshot", "working"}
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"dtype": "uint16", "shape": [10, 10], "data": ""},
+        {"dtype": "uint8", "shape": [10**9, 10**9], "data": ""},
+        {"dtype": "uint8", "shape": [10, 10, 4], "data": ""},
+        {"dtype": "uint8", "shape": [10, 10], "data": "bad"},
+        {"dtype": "uint8", "shape": [True, 10], "data": ""},
+    ],
+)
+def test_slice_api_rejects_invalid_dimensions_before_decode(client, bad):
+    assert client.post("/api/slice-predict", json={"image": bad}).status_code == 400

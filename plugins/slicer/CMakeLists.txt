@@ -1,0 +1,15 @@
+cmake_minimum_required(VERSION 3.16.3...3.28.0 FATAL_ERROR)
+project(MemSegAgentSlicer)
+
+set(EXTENSION_HOMEPAGE "https://github.com/b0wenchen/MemSeg-Agent/tree/main/plugins/slicer")
+set(EXTENSION_CATEGORY "Segmentation")
+set(EXTENSION_CONTRIBUTORS "MemSeg-Agent authors")
+set(EXTENSION_DESCRIPTION "Few-shot segmentation and human-reviewed working memory with a local MemSeg backend.")
+set(EXTENSION_DEPENDS "NA")
+set(EXTENSION_BUILD_SUBDIRECTORY ".")
+
+find_package(Slicer REQUIRED)
+include(${Slicer_USE_FILE})
+add_subdirectory(MemSegAgent)
+include(${Slicer_EXTENSION_GENERATE_CONFIG})
+include(${Slicer_EXTENSION_CPACK})
