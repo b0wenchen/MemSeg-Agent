@@ -372,7 +372,9 @@ python -m compileall -q src scripts
 ```bibtex
 @article{chen2026memsegagent,
   title={Shifting Adaptation from Weight Space to Memory Space: A Memory-Augmented Agent for Medical Image Segmentation},
-  author={Chen, Bowen and Gao, Qiaohui and Wan, Shaowen and others},
+  author={Chen, Bowen and Gao, Qiaohui and Wan, Shaowen and
+          Yan, Ruiyu and Sun, Shanhui and Liu, Wei and Li, Xiang and
+          Liu, Tianming and Zhao, Lin},
   journal={arXiv preprint arXiv:2603.05873},
   year={2026}
 }
