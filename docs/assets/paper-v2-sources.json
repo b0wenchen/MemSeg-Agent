@@ -1,0 +1,48 @@
+{
+  "paper": "https://arxiv.org/abs/2603.05873v2",
+  "manuscript_title": "From Weight-Space to Memory-Space Adaptation: A Unified Framework for Medical Image Segmentation",
+  "version_date": "2026-10-18",
+  "figures": [
+    {
+      "file": "framework.png",
+      "source": "https://arxiv.org/html/2603.05873v2/Fig.1.png",
+      "figure": "Figure 1",
+      "sha256": "60819c0debe7fba8f44dd2224dea2179890c825e418d083642def854bd146ec5"
+    },
+    {
+      "file": "qualitative.png",
+      "source": "https://arxiv.org/html/2603.05873v2/visual_comparision.png",
+      "figure": "Figure 2",
+      "sha256": "53598feaf5b7857c08165e16b06c122efa2ea8d96bc958892f1559faaf8842bf"
+    },
+    {
+      "file": "memory-components.svg",
+      "source": "https://arxiv.org/html/2603.05873v2/memory_component_ablation.svg",
+      "figure": "Figure 3a",
+      "sha256": "aa6e60207f3873cae76b508e285175e458b3073b3264dd77a001c030a949fb23"
+    },
+    {
+      "file": "memory-size.svg",
+      "source": "https://arxiv.org/html/2603.05873v2/working_memory_size_ablation.svg",
+      "figure": "Figure 3b",
+      "sha256": "9e0d5c3329776a9fc805197b4e98a226d6580548574dec1010a7d410673b210b"
+    },
+    {
+      "file": "sequential-adaptation.png",
+      "source": "https://arxiv.org/pdf/2603.05873v2",
+      "figure": "Figure 4; PDF page 8; clip (307, 397, 545, 555) pt; rendered at 288 dpi",
+      "sha256": "f07f94cbafcb0c284d0bad142d22fe9138135c085e9626fd1c5d85f585df0d08"
+    },
+    {
+      "file": "memory-validity.png",
+      "source": "https://arxiv.org/pdf/2603.05873v2",
+      "figure": "Figure 5; PDF page 9; clip (51, 440, 290, 592) pt; rendered at 288 dpi",
+      "sha256": "e06a1650947e6fdca781ce22d7b56ea8395deb41943cecf42f10a02f6487b6a9"
+    }
+  ],
+  "tables": {
+    "supervised-data": "https://arxiv.org/html/2603.05873v2#S4.T1",
+    "transfer-table": "https://arxiv.org/html/2603.05873v2#S4.T2",
+    "consolidation-table": "https://arxiv.org/html/2603.05873v2#S4.T3"
+  }
+}
