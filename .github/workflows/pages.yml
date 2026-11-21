@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
   pages: write
   id-token: write
 concurrency:
@@ -22,7 +23,30 @@ jobs:
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
+          name: github-pages-${{ github.run_attempt }}
           path: docs
+      - name: Wait for artifact metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PAGES_ARTIFACT_NAME: github-pages-${{ github.run_attempt }}
+        shell: bash
+        run: |
+          # The artifact may become visible to the deployment API after upload finishes.
+          # A distinct name per attempt also prevents ambiguity when rerunning this job.
+          for attempt in {1..12}; do
+            count=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" \
+              | jq '[.artifacts[] | select(.name == env.PAGES_ARTIFACT_NAME)] | length')
+            if [ "$count" -eq 1 ]; then
+              echo "Deployment artifact is available."
+              exit 0
+            fi
+            echo "Waiting for deployment artifact metadata (attempt $attempt/12)."
+            sleep 5
+          done
+          echo "::error::Deployment artifact did not become available."
+          exit 1
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
